@@ -1015,6 +1015,32 @@
     });
     flowerSelect.addEventListener("change", renderPhotoList);
 
+    /* Nén ảnh trước khi upload: co về tối đa 1920px, xuất JPEG chất lượng 85%.
+       Ảnh 20-30MB từ điện thoại/máy ảnh sẽ chỉ còn vài trăm KB mà nhìn vẫn nét. */
+    async function compressImage(file) {
+      const MAX_DIM = 1920;
+      try {
+        // imageOrientation: tự xoay ảnh đúng chiều theo EXIF (ảnh điện thoại hay bị xoay)
+        const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+        const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
+        // Ảnh đã nhỏ sẵn thì gửi nguyên bản
+        if (scale === 1 && file.size < 1.5 * 1024 * 1024) {
+          bitmap.close();
+          return file;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+        const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+        return blob || file;
+      } catch (err) {
+        console.warn("Không nén được, gửi file gốc:", err);
+        return file;
+      }
+    }
+
     document.getElementById("uploadBtn").addEventListener("click", async () => {
       if (!WORKER_URL) {
         setStatus("Chưa cấu hình WORKER_URL — xem hướng dẫn trong SETUP.md.", "err");
@@ -1025,19 +1051,21 @@
       const files = photoInput.files;
       if (!files.length) { setStatus("Chọn ít nhất một ảnh.", "err"); return; }
 
-      setStatus(`Đang tải lên 0/${files.length}...`, "");
       let done = 0;
       for (const file of files) {
+        setStatus(`Đang nén ảnh ${done + 1}/${files.length}...`, "");
+        const upload = await compressImage(file);
+        setStatus(`Đang tải lên ${done + 1}/${files.length}...`, "");
         const res = await fetch(`${WORKER_URL}/upload/${flowerSelect.value}`, {
           method: "POST",
-          headers: { "Content-Type": file.type, "X-Password": adminPassword },
-          body: file,
+          headers: { "Content-Type": upload.type || "image/jpeg", "X-Password": adminPassword },
+          body: upload,
         });
         if (res.status === 401) { setStatus("Sai mật khẩu.", "err"); return; }
+        if (res.status === 413) { setStatus("Ảnh quá lớn kể cả sau khi nén — thử ảnh khác nhé.", "err"); return; }
         if (!res.ok) { setStatus("Lỗi khi tải ảnh lên, thử lại nhé.", "err"); return; }
         albums = (await res.json()).albums;
         done++;
-        setStatus(`Đang tải lên ${done}/${files.length}...`, "");
       }
       photoInput.value = "";
       renderPhotoList();
