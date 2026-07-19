@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moon Seal</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #10160f;
+      /* màu dự phòng khi ảnh chưa load */
+    }
+
+    .stage {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* ── Lớp 1: background (2 lớp chồng nhau để crossfade) ── */
+    .bg {
+      position: absolute;
+      inset: 0;
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      transition: opacity 0.9s ease;
+      z-index: 1;
+    }
+
+    .bg--light {
+      background-image: url("assets/bg_light.jpg");
+    }
+
+    .bg--dark {
+      background-image: url("assets/bg_dark.jpg");
+    }
+
+    /* Trạng thái theme: điều khiển bằng class trên <body> */
+    body.light .bg--dark {
+      opacity: 0;
+    }
+
+    body.light .bg--light {
+      opacity: 1;
+    }
+
+    body.dark .bg--dark {
+      opacity: 1;
+    }
+
+    body.dark .bg--light {
+      opacity: 0;
+    }
+
+    /* ── Lớp 2: blink phủ trên bg ── */
+    .blink {
+      position: absolute;
+      inset: 0;
+      background: url("assets/blink.gif") center / 360px repeat;
+      /* gif nhỏ nên lặp lại phủ kín */
+      z-index: 2;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      opacity: 0.9;
+    }
+
+    /* ── Lớp 3: seal xoay ở giữa ── */
+    .seal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: min(38vmin, 320px);
+      aspect-ratio: 1 / 1;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+    }
+
+    .seal img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+      animation: spin 12s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Seal là nút bấm được */
+    .seal {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .seal:focus-visible {
+      outline: 2px solid #cfc3ff;
+      outline-offset: 6px;
+      border-radius: 50%;
+    }
+
+    /* Khi postcard mở: seal thu nhỏ và biến mất */
+    body.postcard-open .seal {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.2);
+      pointer-events: none;
+    }
+
+    /* ── Postcard pop ra giữa màn hình ── */
+    .postcard {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: min(80vw, calc(78vh * 752 / 454), 900px);
+      /* giữ tỉ lệ ảnh, không tràn màn hình */
+      z-index: 5;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      /* trạng thái đóng */
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.15) rotate(-6deg);
+      pointer-events: none;
+      transition: opacity 0.4s ease,
+        transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+      /* nảy nhẹ khi pop */
+    }
+
+    body.postcard-open .postcard {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1) rotate(0deg);
+      pointer-events: auto;
+    }
+
+    .postcard:focus-visible {
+      outline: 2px solid #cfc3ff;
+      outline-offset: 6px;
+      border-radius: 8px;
+    }
+
+    .postcard .paper {
+      width: 100%;
+      display: block;
+      border-radius: 6px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+      /* bấm vào nền giấy để đóng */
+    }
+
+    /* Postcard đổi theo theme: sáng = giấy ngả vàng, tối = ngả xanh */
+    .postcard .icon-light,
+    .postcard .icon-dark {
+      display: none;
+    }
+
+    body.light .postcard .icon-light {
+      display: block;
+    }
+
+    body.dark .postcard .icon-dark {
+      display: block;
+    }
+
+    /* ── 5 nút hoa trên postcard ──
+     Vị trí tính theo % của postcard nên tự co giãn theo màn hình */
+    .flower {
+      position: absolute;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+      transform-origin: center bottom;
+    }
+
+    .flower img {
+      width: 100%;
+      display: block;
+      /* Viền sáng ôm theo đúng hình bông hoa + nhịp "thở" nhẹ để gợi ý bấm được */
+      animation: flower-glow 2.8s ease-in-out infinite;
+      transition: filter 0.3s ease;
+    }
+
+    /* Theme sáng: glow trắng ngà ấm nổi trên giấy vàng */
+    @keyframes flower-glow {
+
+      0%,
+      100% {
+        filter: drop-shadow(0 0 3px rgba(255, 250, 235, 0.95)) drop-shadow(0 0 7px rgba(255, 225, 170, 0.65)) drop-shadow(2px 4px 5px rgba(90, 60, 40, 0.2));
+      }
+
+      50% {
+        filter: drop-shadow(0 0 5px rgba(255, 250, 235, 1)) drop-shadow(0 0 14px rgba(255, 215, 150, 0.9)) drop-shadow(2px 4px 5px rgba(90, 60, 40, 0.2));
+      }
+    }
+
+    /* Theme tối: glow xanh bạc lạnh nổi trên giấy ngả xanh */
+    body.dark .flower img {
+      animation-name: flower-glow-dark;
+    }
+
+    @keyframes flower-glow-dark {
+
+      0%,
+      100% {
+        filter: drop-shadow(0 0 3px rgba(240, 248, 255, 0.95)) drop-shadow(0 0 7px rgba(170, 200, 255, 0.6)) drop-shadow(2px 4px 5px rgba(20, 35, 50, 0.3));
+      }
+
+      50% {
+        filter: drop-shadow(0 0 5px rgba(240, 248, 255, 1)) drop-shadow(0 0 14px rgba(160, 195, 255, 0.9)) drop-shadow(2px 4px 5px rgba(20, 35, 50, 0.3));
+      }
+    }
+
+    /* Hover / focus: dừng nhịp thở, glow bung sáng rõ nhất */
+    .flower:hover,
+    .flower:focus-visible {
+      transform: scale(1.07) rotate(-2deg);
+    }
+
+    .flower:hover img,
+    .flower:focus-visible img {
+      animation-play-state: paused;
+      filter: drop-shadow(0 0 6px rgba(255, 252, 240, 1)) drop-shadow(0 0 18px rgba(255, 210, 140, 1)) drop-shadow(3px 8px 12px rgba(90, 60, 40, 0.35));
+    }
+
+    body.dark .flower:hover img,
+    body.dark .flower:focus-visible img {
+      filter: drop-shadow(0 0 6px rgba(245, 250, 255, 1)) drop-shadow(0 0 18px rgba(150, 190, 255, 1)) drop-shadow(3px 8px 12px rgba(20, 35, 50, 0.45));
+    }
+
+    .flower:focus-visible {
+      outline: 2px solid #cfa3b8;
+      outline-offset: 4px;
+      border-radius: 10px;
+    }
+
+    .flower:active {
+      transform: scale(0.97);
+    }
+
+    /* Vị trí từng bông (left/top/width theo % postcard, giữ bố cục gần ảnh mẫu) */
+    .flower-1 {
+      left: 6%;
+      top: 68%;
+      width: 12%;
+    }
+
+    /* hồng nhạt — góc dưới trái */
+    .flower-2 {
+      left: 12%;
+      top: 14%;
+      width: 18%;
+    }
+
+    /* lavender — cao, giữa trái */
+    .flower-3 {
+      left: 30%;
+      top: 6%;
+      width: 12%;
+    }
+
+    /* cam đào — phía trên */
+    .flower-4 {
+      left: 40%;
+      top: 36%;
+      width: 11%;
+    }
+
+    /* xanh dương — chính giữa */
+    .flower-5 {
+      left: 52%;
+      top: 8%;
+      width: 21%;
+    }
+
+    /* hồng lớn — bên phải */
+
+    /* ── Nút theme switch: góc dưới bên trái ── */
+    .theme-switch {
+      position: absolute;
+      left: 20px;
+      bottom: 16px;
+      z-index: 10;
+      width: clamp(64px, 12vmin, 110px);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: transform 0.25s ease;
+    }
+
+    .theme-switch:hover {
+      transform: scale(1.08);
+    }
+
+    .theme-switch:active {
+      transform: scale(0.95);
+    }
+
+    .theme-switch:focus-visible {
+      outline: 2px solid #cfc3ff;
+      outline-offset: 4px;
+      border-radius: 12px;
+    }
+
+    .theme-switch img {
+      width: 100%;
+      display: block;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+    }
+
+    /* Ở theme sáng hiện icon mặt trăng, theme tối hiện icon mặt trời */
+    .theme-switch .icon-light,
+    .theme-switch .icon-dark {
+      display: none;
+    }
+
+    body.light .theme-switch .icon-light {
+      display: block;
+    }
+
+    body.dark .theme-switch .icon-dark {
+      display: block;
+    }
+
+    /* ── Nút sound: góc dưới bên phải ── */
+    .sound-toggle {
+      position: absolute;
+      right: 20px;
+      bottom: 16px;
+      z-index: 10;
+      width: clamp(72px, 14vmin, 130px);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: transform 0.25s ease;
+    }
+
+    .sound-toggle:hover {
+      transform: scale(1.06);
+    }
+
+    .sound-toggle:active {
+      transform: scale(0.95);
+    }
+
+    .sound-toggle:focus-visible {
+      outline: 2px solid #cfc3ff;
+      outline-offset: 4px;
+      border-radius: 12px;
+    }
+
+    .sound-toggle img {
+      width: 100%;
+      display: block;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+      transition: filter 0.3s ease, opacity 0.3s ease;
+    }
+
+    /* Icon hộp nhạc đổi theo theme */
+    .sound-toggle .icon-light,
+    .sound-toggle .icon-dark {
+      display: none;
+    }
+
+    body.light .sound-toggle .icon-light {
+      display: block;
+    }
+
+    body.dark .sound-toggle .icon-dark {
+      display: block;
+    }
+
+    /* Khi nhạc đang tắt: icon mờ + xám nhẹ để nhận biết */
+    body.muted .sound-toggle img {
+      filter: grayscale(0.85) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+      opacity: 0.65;
+    }
+
+    /* ── Album viewer ── */
+    .album-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(20, 25, 18, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    body.album-open .album-overlay {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Khung giấy vintage quanh ảnh */
+    .album-frame {
+      position: relative;
+      background: #f1ead9;
+      padding: clamp(14px, 2.5vmin, 26px);
+      padding-bottom: clamp(30px, 5vmin, 54px);
+      /* mép dưới dày kiểu ảnh polaroid */
+      border-radius: 4px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(160, 130, 90, 0.15);
+      transform: scale(0.8) rotate(2deg);
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+      max-width: 86vw;
+    }
+
+    body.dark .album-frame {
+      background: #e2e6dc;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65), inset 0 0 40px rgba(90, 110, 120, 0.2);
+    }
+
+    body.album-open .album-frame {
+      transform: scale(1) rotate(0deg);
+    }
+
+    .album-frame img {
+      display: block;
+      max-width: min(78vw, 820px);
+      max-height: 68vh;
+      border-radius: 2px;
+    }
+
+    .album-counter {
+      position: absolute;
+      bottom: clamp(6px, 1.4vmin, 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      font: 500 clamp(12px, 1.8vmin, 15px)/1 Georgia, serif;
+      color: #8a7a5f;
+      letter-spacing: 0.12em;
+    }
+
+    .album-empty {
+      padding: 8vmin 10vmin;
+      font: 500 clamp(14px, 2.2vmin, 18px)/1.6 Georgia, serif;
+      color: #8a7a5f;
+      text-align: center;
+      max-width: 380px;
+    }
+
+    /* Mũi tên trái / phải */
+    .album-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 21;
+      width: clamp(44px, 7vmin, 62px);
+      height: clamp(44px, 7vmin, 62px);
+      border: none;
+      border-radius: 50%;
+      background: rgba(245, 240, 225, 0.85);
+      color: #6b5a40;
+      font-size: clamp(22px, 3.5vmin, 30px);
+      line-height: 1;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+
+    .album-nav:hover {
+      background: rgba(255, 252, 240, 1);
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    .album-nav:active {
+      transform: translateY(-50%) scale(0.95);
+    }
+
+    .album-nav:focus-visible {
+      outline: 2px solid #cfc3ff;
+      outline-offset: 3px;
+    }
+
+    .album-prev {
+      left: clamp(10px, 3vw, 40px);
+    }
+
+    .album-next {
+      right: clamp(10px, 3vw, 40px);
+    }
+
+    /* Nút đóng album */
+    .album-close {
+      position: absolute;
+      top: -14px;
+      right: -14px;
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 50%;
+      background: #b98c8c;
+      color: #fff;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+      transition: transform 0.2s ease;
+    }
+
+    .album-close:hover {
+      transform: scale(1.12);
+    }
+
+    .album-close:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    /* ── Nút và panel Settings ── */
+    .settings-btn {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      z-index: 10;
+      width: 42px;
+      height: 42px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(245, 240, 225, 0.75);
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+      transition: transform 0.25s ease;
+    }
+
+    .settings-btn:hover {
+      transform: rotate(40deg) scale(1.1);
+    }
+
+    .settings-btn:focus-visible {
+      outline: 2px solid #cfc3ff;
+      outline-offset: 3px;
+    }
+
+    .settings-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(20, 25, 18, 0.55);
+    }
+
+    body.settings-open .settings-overlay {
+      display: flex;
+    }
+
+    .settings-panel {
+      width: min(92vw, 460px);
+      max-height: 86vh;
+      overflow-y: auto;
+      background: #f5efdf;
+      border-radius: 10px;
+      padding: 22px 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      font: 15px/1.55 Georgia, serif;
+      color: #4d4030;
+    }
+
+    .settings-panel h2 {
+      font-size: 19px;
+      margin-bottom: 14px;
+      letter-spacing: 0.04em;
+    }
+
+    .settings-panel label {
+      display: block;
+      margin: 12px 0 4px;
+      font-weight: 600;
+    }
+
+    .settings-panel input[type="password"],
+    .settings-panel select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #c9bda0;
+      border-radius: 6px;
+      background: #fffdf6;
+      font: inherit;
+      color: inherit;
+    }
+
+    .settings-panel input[type="file"] {
+      width: 100%;
+      font: inherit;
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .settings-panel button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: #8a9a7b;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #77886a;
+    }
+
+    .btn-quiet {
+      background: #ddd3bc;
+      color: #4d4030;
+    }
+
+    .btn-quiet:hover {
+      background: #d0c5ab;
+    }
+
+    .settings-status {
+      margin-top: 12px;
+      font-size: 14px;
+      min-height: 1.4em;
+    }
+
+    .settings-status.ok {
+      color: #5d7a4e;
+    }
+
+    .settings-status.err {
+      color: #a05252;
+    }
+
+    /* Danh sách ảnh trong album đang chọn */
+    .photo-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .photo-list .thumb {
+      position: relative;
+      width: 74px;
+      height: 74px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #c9bda0;
+    }
+
+    .photo-list .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .photo-list .thumb button {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border-radius: 50%;
+      background: rgba(160, 82, 82, 0.9);
+      color: #fff;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .seal img {
+        animation: none;
+      }
+
+      .bg {
+        transition: none;
+      }
+
+      .flower img {
+        animation: none;
+        filter: drop-shadow(0 0 4px rgba(255, 250, 235, 0.95)) drop-shadow(0 0 10px rgba(255, 220, 160, 0.75));
+      }
+    }
+  </style>
+</head>
+
+<body class="light">
+  <div class="stage">
+    <!-- Lớp 1: background sáng/tối -->
+    <div class="bg bg--dark"></div>
+    <div class="bg bg--light"></div>
+
+    <!-- Lớp 2: blink -->
+    <div class="blink"></div>
+
+    <!-- Lớp 3: seal (bấm để mở postcard) -->
+    <button class="seal" id="sealBtn" aria-label="Mở postcard">
+      <img src="assets/seal.png" alt="Wax seal — thỏ trên trăng lưỡi liềm" />
+    </button>
+
+    <!-- Postcard: pop ra khi bấm seal, bấm vào nền giấy để đóng lại -->
+    <div class="postcard" id="postcard" aria-hidden="true" tabindex="-1">
+      <img class="paper icon-light" src="assets/postcard_light.png" alt="Postcard giấy cũ ngả vàng" />
+      <img class="paper icon-dark" src="assets/postcard_dark.png" alt="Postcard giấy cũ ngả xanh" />
+
+      <!-- 5 nhành hoa, mỗi bông là 1 nút -->
+      <button class="flower flower-1" data-flower="1" aria-label="Bông hồng nhạt hình quạt">
+        <img src="assets/flower_1.png" alt="" />
+      </button>
+      <button class="flower flower-2" data-flower="2" aria-label="Nhành lavender">
+        <img src="assets/flower_2.png" alt="" />
+      </button>
+      <button class="flower flower-3" data-flower="3" aria-label="Bông cam đào hình quạt">
+        <img src="assets/flower_3.png" alt="" />
+      </button>
+      <button class="flower flower-4" data-flower="4" aria-label="Bông hoa xanh dương">
+        <img src="assets/flower_4.png" alt="" />
+      </button>
+      <button class="flower flower-5" data-flower="5" aria-label="Bông hồng lớn">
+        <img src="assets/flower_5.png" alt="" />
+      </button>
+    </div>
+
+    <!-- Nút đổi theme -->
+    <button class="theme-switch" id="themeSwitch" aria-label="Đổi giao diện sáng / tối">
+      <img class="icon-light" src="assets/theme_switch_light.png" alt="" />
+      <img class="icon-dark" src="assets/theme_switch_dark.gif" alt="" />
+    </button>
+
+    <!-- Nút bật/tắt nhạc -->
+    <button class="sound-toggle" id="soundToggle" aria-label="Bật / tắt nhạc nền" aria-pressed="false">
+      <img class="icon-light" src="assets/sound_light.gif" alt="" />
+      <img class="icon-dark" src="assets/sound_dark.gif" alt="" />
+    </button>
+
+    <!-- Album viewer -->
+    <div class="album-overlay" id="albumOverlay" aria-hidden="true">
+      <button class="album-nav album-prev" id="albumPrev" aria-label="Ảnh trước">‹</button>
+      <div class="album-frame">
+        <button class="album-close" id="albumClose" aria-label="Đóng album">✕</button>
+        <img id="albumImage" src="" alt="Ảnh trong album" />
+        <div class="album-empty" id="albumEmpty" hidden>Album này chưa có ảnh.<br />Mở Settings ⚙ để thêm ảnh nhé ✿
+        </div>
+        <div class="album-counter" id="albumCounter"></div>
+      </div>
+      <button class="album-nav album-next" id="albumNext" aria-label="Ảnh sau">›</button>
+    </div>
+
+    <!-- Nút mở settings -->
+    <button class="settings-btn" id="settingsBtn" aria-label="Mở cài đặt">⚙</button>
+
+    <!-- Panel settings -->
+    <div class="settings-overlay" id="settingsOverlay">
+      <div class="settings-panel" role="dialog" aria-label="Cài đặt album">
+        <h2>⚙ Cài đặt album</h2>
+
+        <label for="adminPassword">Mật khẩu quản trị</label>
+        <input type="password" id="adminPassword" autocomplete="current-password"
+          placeholder="Nhập mật khẩu để up / xoá ảnh" />
+
+        <label for="flowerSelect">Chọn album (bông hoa)</label>
+        <select id="flowerSelect">
+          <option value="1">1 — Hồng nhạt (dưới trái)</option>
+          <option value="2">2 — Lavender</option>
+          <option value="3">3 — Cam đào</option>
+          <option value="4">4 — Xanh dương</option>
+          <option value="5">5 — Hồng lớn</option>
+        </select>
+
+        <label for="photoInput">Thêm ảnh từ thư viện</label>
+        <input type="file" id="photoInput" accept="image/*" multiple />
+
+        <div class="photo-list" id="photoList"></div>
+
+        <div class="settings-actions">
+          <button class="btn-primary" id="uploadBtn">Tải ảnh lên</button>
+          <button class="btn-quiet" id="settingsClose">Đóng</button>
+        </div>
+        <div class="settings-status" id="settingsStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nhạc nền: đặt file nhạc của bạn vào assets/music.mp3 -->
+  <audio id="bgMusic" src="assets/music.mp3" loop preload="auto"></audio>
+
+  <script>
+    const btn = document.getElementById("themeSwitch");
+    btn.addEventListener("click", () => {
+      const body = document.body;
+      const toDark = body.classList.contains("light");
+      body.classList.toggle("light", !toDark);
+      body.classList.toggle("dark", toDark);
+    });
+
+    /* ── Bật / tắt nhạc nền ── */
+    const soundBtn = document.getElementById("soundToggle");
+    const music = document.getElementById("bgMusic");
+    music.volume = 0.6;
+
+    // Trình duyệt chặn tự phát nhạc, nên mặc định bắt đầu ở trạng thái tắt
+    document.body.classList.add("muted");
+
+    soundBtn.addEventListener("click", async () => {
+      const isMuted = document.body.classList.contains("muted");
+      if (isMuted) {
+        try {
+          await music.play();
+          document.body.classList.remove("muted");
+          soundBtn.setAttribute("aria-pressed", "true");
+        } catch (err) {
+          // Chưa có file nhạc hoặc file lỗi — vẫn giữ trạng thái tắt
+          console.warn("Không phát được nhạc:", err);
+        }
+      } else {
+        music.pause();
+        document.body.classList.add("muted");
+        soundBtn.setAttribute("aria-pressed", "false");
+      }
+    });
+
+    /* ── Mở / đóng postcard ── */
+    const sealBtn = document.getElementById("sealBtn");
+    const postcard = document.getElementById("postcard");
+
+    function openPostcard() {
+      document.body.classList.add("postcard-open");
+      postcard.setAttribute("aria-hidden", "false");
+      postcard.focus();
+    }
+    function closePostcard() {
+      document.body.classList.remove("postcard-open");
+      postcard.setAttribute("aria-hidden", "true");
+      sealBtn.focus();
+    }
+
+    sealBtn.addEventListener("click", openPostcard);
+    // Chỉ đóng khi bấm vào nền giấy, không đóng khi bấm hoa
+    postcard.querySelectorAll(".paper").forEach((paper) => {
+      paper.addEventListener("click", closePostcard);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      // Đóng theo thứ tự lớp trên cùng trước
+      if (document.body.classList.contains("settings-open")) {
+        document.body.classList.remove("settings-open");
+      } else if (document.body.classList.contains("album-open")) {
+        document.getElementById("albumOverlay").setAttribute("aria-hidden", "true");
+        document.body.classList.remove("album-open");
+      } else if (document.body.classList.contains("postcard-open")) {
+        closePostcard();
+      }
+    });
+
+    /* ═══════════════ ALBUM ═══════════════ */
+
+    /* Điền URL Worker sau khi deploy (xem SETUP.md), ví dụ:
+       const WORKER_URL = "https://moon-seal-api.ban-cua-ban.workers.dev";
+       Để trống "" thì trang chạy chế độ demo với ảnh có sẵn. */
+    const WORKER_URL = "https://moon-seal-api.embethotrang.workers.dev";
+
+    // Ảnh demo khi chưa có Worker — bông 1 có ảnh, các bông khác trống
+    const DEMO_ALBUMS = {
+      "1": ["assets/bg_light.jpg", "assets/bg_dark.jpg", "assets/seal.png"],
+      "2": [], "3": [], "4": [], "5": []
+    };
+
+    let albums = {};        // { "1": [key hoặc url, ...], ... }
+    let currentFlower = null;
+    let currentIndex = 0;
+    let adminPassword = ""; // chỉ giữ trong phiên, không lưu vào trình duyệt
+
+    const albumOverlay = document.getElementById("albumOverlay");
+    const albumImage = document.getElementById("albumImage");
+    const albumEmpty = document.getElementById("albumEmpty");
+    const albumCounter = document.getElementById("albumCounter");
+
+    function photoUrl(item) {
+      // Với Worker: albums.json chứa key trong bucket → dựng URL qua Worker
+      // Với demo: item đã là đường dẫn trực tiếp
+      return WORKER_URL ? `${WORKER_URL}/img/${encodeURIComponent(item)}` : item;
+    }
+
+    async function loadAlbums() {
+      if (!WORKER_URL) { albums = DEMO_ALBUMS; return; }
+      try {
+        const res = await fetch(`${WORKER_URL}/albums`);
+        albums = await res.json();
+      } catch (err) {
+        console.warn("Không tải được albums từ Worker, dùng demo:", err);
+        albums = DEMO_ALBUMS;
+      }
+    }
+    loadAlbums();
+
+    function renderAlbum() {
+      const list = albums[currentFlower] || [];
+      if (list.length === 0) {
+        albumImage.hidden = true;
+        albumEmpty.hidden = false;
+        albumCounter.textContent = "";
+        return;
+      }
+      albumImage.hidden = false;
+      albumEmpty.hidden = true;
+      albumImage.src = photoUrl(list[currentIndex]);
+      albumCounter.textContent = `${currentIndex + 1} / ${list.length}`;
+    }
+
+    function openAlbum(flowerId) {
+      currentFlower = flowerId;
+      currentIndex = 0;
+      renderAlbum();
+      document.body.classList.add("album-open");
+      albumOverlay.setAttribute("aria-hidden", "false");
+    }
+    function closeAlbum() {
+      document.body.classList.remove("album-open");
+      albumOverlay.setAttribute("aria-hidden", "true");
+    }
+    function nextPhoto() {
+      const list = albums[currentFlower] || [];
+      if (list.length < 2) return;
+      currentIndex = (currentIndex + 1) % list.length;       // quay vòng
+      renderAlbum();
+    }
+    function prevPhoto() {
+      const list = albums[currentFlower] || [];
+      if (list.length < 2) return;
+      currentIndex = (currentIndex - 1 + list.length) % list.length;
+      renderAlbum();
+    }
+
+    postcard.querySelectorAll(".flower").forEach((flower) => {
+      flower.addEventListener("click", () => openAlbum(flower.dataset.flower));
+    });
+    document.getElementById("albumNext").addEventListener("click", nextPhoto);
+    document.getElementById("albumPrev").addEventListener("click", prevPhoto);
+    document.getElementById("albumClose").addEventListener("click", closeAlbum);
+    // Bấm vào vùng tối ngoài khung ảnh cũng đóng album
+    albumOverlay.addEventListener("click", (e) => {
+      if (e.target === albumOverlay) closeAlbum();
+    });
+
+    /* ═══════════════ SETTINGS ═══════════════ */
+    const settingsOverlay = document.getElementById("settingsOverlay");
+    const settingsStatus = document.getElementById("settingsStatus");
+    const flowerSelect = document.getElementById("flowerSelect");
+    const photoInput = document.getElementById("photoInput");
+    const passwordInput = document.getElementById("adminPassword");
+    const photoList = document.getElementById("photoList");
+
+    function setStatus(msg, type) {
+      settingsStatus.textContent = msg;
+      settingsStatus.className = "settings-status" + (type ? " " + type : "");
+    }
+
+    function renderPhotoList() {
+      photoList.innerHTML = "";
+      const list = albums[flowerSelect.value] || [];
+      list.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "thumb";
+        const img = document.createElement("img");
+        img.src = photoUrl(item);
+        const del = document.createElement("button");
+        del.textContent = "✕";
+        del.setAttribute("aria-label", "Xoá ảnh này");
+        del.addEventListener("click", () => deletePhoto(item));
+        div.append(img, del);
+        photoList.append(div);
+      });
+    }
+
+    document.getElementById("settingsBtn").addEventListener("click", () => {
+      document.body.classList.add("settings-open");
+      passwordInput.value = adminPassword;
+      setStatus("", "");
+      renderPhotoList();
+    });
+    document.getElementById("settingsClose").addEventListener("click", () => {
+      document.body.classList.remove("settings-open");
+    });
+    flowerSelect.addEventListener("change", renderPhotoList);
+
+    document.getElementById("uploadBtn").addEventListener("click", async () => {
+      if (!WORKER_URL) {
+        setStatus("Chưa cấu hình WORKER_URL — xem hướng dẫn trong SETUP.md.", "err");
+        return;
+      }
+      adminPassword = passwordInput.value;
+      if (!adminPassword) { setStatus("Nhập mật khẩu trước đã nhé.", "err"); return; }
+      const files = photoInput.files;
+      if (!files.length) { setStatus("Chọn ít nhất một ảnh.", "err"); return; }
+
+      setStatus(`Đang tải lên 0/${files.length}...`, "");
+      let done = 0;
+      for (const file of files) {
+        const res = await fetch(`${WORKER_URL}/upload/${flowerSelect.value}`, {
+          method: "POST",
+          headers: { "Content-Type": file.type, "X-Password": adminPassword },
+          body: file,
+        });
+        if (res.status === 401) { setStatus("Sai mật khẩu.", "err"); return; }
+        if (!res.ok) { setStatus("Lỗi khi tải ảnh lên, thử lại nhé.", "err"); return; }
+        albums = (await res.json()).albums;
+        done++;
+        setStatus(`Đang tải lên ${done}/${files.length}...`, "");
+      }
+      photoInput.value = "";
+      renderPhotoList();
+      setStatus(`Đã tải lên ${done} ảnh ✓`, "ok");
+    });
+
+    async function deletePhoto(item) {
+      if (!WORKER_URL) { setStatus("Chế độ demo không xoá được ảnh.", "err"); return; }
+      adminPassword = passwordInput.value;
+      if (!adminPassword) { setStatus("Nhập mật khẩu trước đã nhé.", "err"); return; }
+      const res = await fetch(`${WORKER_URL}/photo/${encodeURIComponent(item)}`, {
+        method: "DELETE",
+        headers: { "X-Password": adminPassword },
+      });
+      if (res.status === 401) { setStatus("Sai mật khẩu.", "err"); return; }
+      if (!res.ok) { setStatus("Lỗi khi xoá ảnh.", "err"); return; }
+      albums = (await res.json()).albums;
+      renderPhotoList();
+      setStatus("Đã xoá ảnh ✓", "ok");
+    }
+
+    /* ═══════════════ PHÍM TẮT ═══════════════ */
+    document.addEventListener("keydown", (e) => {
+      if (document.body.classList.contains("album-open")) {
+        if (e.key === "ArrowRight") nextPhoto();
+        if (e.key === "ArrowLeft") prevPhoto();
+      }
+    });
+  </script>
+</body>
+
+</html>
