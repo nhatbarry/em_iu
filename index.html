@@ -25,6 +25,8 @@
       position: relative;
       width: 100vw;
       height: 100vh;
+      height: 100dvh;
+      /* mobile: trừ đúng phần thanh địa chỉ trình duyệt */
     }
 
     /* ── Lớp 1: background (2 lớp chồng nhau để crossfade) ── */
@@ -193,6 +195,13 @@
       cursor: pointer;
       transition: transform 0.3s ease;
       transform-origin: center bottom;
+    }
+
+    /* Mở rộng vùng chạm ra ngoài mép ảnh ~10px (vô hình) — quan trọng trên mobile */
+    .flower::after {
+      content: "";
+      position: absolute;
+      inset: -10px;
     }
 
     .flower img {
@@ -699,6 +708,57 @@
       line-height: 1;
     }
 
+    /* ── Tối ưu cho điện thoại (màn hẹp) ── */
+    @media (max-width: 640px) {
+
+      /* Postcard chiếm gần hết bề ngang để hoa đủ lớn mà chạm */
+      .postcard {
+        width: min(96vw, calc(72vh * 752 / 454));
+      }
+
+      /* Seal to hơn chút cho dễ bấm */
+      .seal {
+        width: min(48vmin, 300px);
+      }
+
+      /* Mũi tên album ép sát mép, đè nhẹ lên khung cho đỡ chật */
+      .album-prev {
+        left: 4px;
+      }
+
+      .album-next {
+        right: 4px;
+      }
+
+      .album-frame img {
+        max-width: 84vw;
+        max-height: 62vh;
+      }
+
+      /* Nút góc thu gọn để đỡ che nền */
+      .theme-switch {
+        width: clamp(56px, 17vw, 76px);
+        left: 12px;
+        bottom: 12px;
+      }
+
+      .sound-toggle {
+        width: clamp(60px, 19vw, 84px);
+        right: 12px;
+        bottom: 12px;
+      }
+
+      .settings-btn {
+        top: 12px;
+        right: 12px;
+      }
+
+      /* Panel settings sát mép hơn */
+      .settings-panel {
+        padding: 18px 16px;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .seal img {
         animation: none;
@@ -1094,6 +1154,23 @@
         if (e.key === "ArrowLeft") prevPhoto();
       }
     });
+
+    /* ═══════════════ VUỐT TRÊN MOBILE ═══════════════ */
+    let touchStartX = 0;
+    let touchStartY = 0;
+    albumOverlay.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].clientX;
+      touchStartY = e.changedTouches[0].clientY;
+    }, { passive: true });
+    albumOverlay.addEventListener("touchend", (e) => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      // Chỉ nhận vuốt ngang rõ ràng (dài hơn 50px và ngang nhiều hơn dọc)
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) nextPhoto();  // vuốt sang trái → ảnh sau
+        else prevPhoto();  // vuốt sang phải → ảnh trước
+      }
+    }, { passive: true });
   </script>
 </body>
 
